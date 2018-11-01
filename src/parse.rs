@@ -112,17 +112,6 @@ impl ParserContext {
     }
 
     pub fn parse(&mut self) -> &RegistryData {
-        let mut dns = self.data_path.clone();
-        dns.push("dns");
-
-        for entry in dns.read_dir().unwrap() {
-            if let Ok(entry) = entry {
-                if let Some(name) = entry.file_name().to_str() {
-                    self.jobs.push_front(ParserJob::Domain(String::from(name)));
-                }
-            }
-        }
-        
         loop {
             if let Some(job) = self.jobs.pop_back() {
                 match job {
