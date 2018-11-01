@@ -671,4 +671,16 @@ impl RegistryData {
             route_sets: Vec::new(),
         }
     }
+
+    pub fn clear(&mut self) {
+        self.aut_nums.clear();
+        self.as_sets.clear();
+        self.as_blocks.clear();
+        self.dns.clear();
+        self.inet_nums.clear();
+        self.inet6_nums.clear();
+        self.routes.clear();
+        self.routes6.clear();
+        self.route_sets.clear();
+    }
 }

@@ -25,7 +25,7 @@ pub struct ParserConfig {
     as_blocks: bool,
     domains: bool,
     routes: bool,
-    route6s: bool,
+    routes6: bool,
     route_sets: bool
 }
 
@@ -39,7 +39,7 @@ impl ParserConfig {
             as_blocks: false,
             domains: false,
             routes: false,
-            route6s: false,
+            routes6: false,
             route_sets: false
         }
     }
@@ -52,7 +52,7 @@ impl ParserConfig {
         par_as_blocks: bool,
         par_domains: bool,
         par_routes: bool,
-        par_route6s: bool,
+        par_routes6: bool,
         par_route_sets: bool) -> ParserConfig {
         ParserConfig {
             aut_nums: par_aut_nums,
@@ -62,7 +62,7 @@ impl ParserConfig {
             as_blocks: par_as_blocks,
             domains: par_domains,
             routes: par_routes,
-            route6s: par_route6s,
+            routes6: par_routes6,
             route_sets: par_route_sets
         }
     }
@@ -70,7 +70,7 @@ impl ParserConfig {
     pub fn routes() -> ParserConfig {
         let mut config = ParserConfig::new();
         config.routes = true;
-        config.route6s = true;
+        config.routes6 = true;
         config
     }
 
@@ -100,18 +100,18 @@ enum ParserJob {
 
 impl ParserContext {
     pub fn new(path: &str, config: ParserConfig) -> ParserContext {
-        let mut context = ParserContext {
+        ParserContext {
             data_path: PathBuf::from(&path),
             registry_data: RegistryData::new(),
             jobs: VecDeque::new(),
             config: config
-        };
-
-        context.populate_queue();
-        context
+        }
     }
 
     pub fn parse(&mut self) -> &RegistryData {
+        self.registry_data.clear();
+        self.populate_queue();
+        
         loop {
             if let Some(job) = self.jobs.pop_back() {
                 match job {
@@ -144,7 +144,7 @@ impl ParserContext {
         }
     }
 
-    pub fn populate_queue(&mut self) {
+    fn populate_queue(&mut self) {
         if self.config.aut_nums { self.iter_dir("aut-num", &|name| {
             let caps = AUT_NUM_FORMAT.captures(name).unwrap();
             ParserJob::AutNum(caps.get(1).unwrap().as_str().parse::<u32>().unwrap())
@@ -155,7 +155,7 @@ impl ParserContext {
         if self.config.inet_nums { self.iter_dir("inetnum", &|name| ParserJob::InetNum(InetCidr::from_filename(name))) }
         if self.config.inet6_nums { self.iter_dir("inet6num", &|name| ParserJob::Inet6Num(Inet6Cidr::from_filename(name))) }
         if self.config.routes { self.iter_dir("route", &|name| ParserJob::Route(InetCidr::from_filename(name))) }
-        if self.config.route6s { self.iter_dir("route6", &|name| ParserJob::Route6(Inet6Cidr::from_filename(name))) }
+        if self.config.routes6 { self.iter_dir("route6", &|name| ParserJob::Route6(Inet6Cidr::from_filename(name))) }
         if self.config.route_sets { self.iter_dir("route-set", &|name| ParserJob::RouteSet(String::from(name))) }
         
     }
