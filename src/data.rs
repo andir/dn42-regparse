@@ -9,16 +9,9 @@ extern crate regex;
 use self::regex::Regex;
 
 lazy_static! {
-    static ref LINE_REGEX: Regex = Regex::new(r"([a-z0-9\-]+):\s+(\S.+)").unwrap();
+    static ref LINE_REGEX: Regex = Regex::new(r"^(([a-z0-9\-]+):)?\s+(\S.*)?$").unwrap();
     static ref INETv4_FORMAT: Regex = Regex::new(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})").unwrap();
-}
-
-fn read(base_path: &PathBuf, t: &str, obj_name: &str) -> BufReader<File> {
-    let mut path = base_path.clone();
-    path.push(t);
-    path.push(obj_name);
-    let file = File::open(path).expect("Failed to open file!");
-    BufReader::new(file)
+    static ref CIDR_FILENAME_FORMAT: Regex = Regex::new(r"((\d{1,3}(\.\d{1,3}){3})|([:0-9a-f]+))_(\d{1,3})").unwrap();
 }
 
 fn parse<T>(obj: T, base_path: &PathBuf, obj_type: &str, obj_name: &str, parser: &Fn(&mut T, (&str, String))) -> T {
@@ -29,15 +22,49 @@ fn parse<T>(obj: T, base_path: &PathBuf, obj_type: &str, obj_name: &str, parser:
     let file = File::open(path).unwrap();
     let reader = BufReader::new(file);
 
+    let mut last_key: Option<String> = None;
+    
     for line in reader.lines() {
         let line = line.unwrap();
-        let line = LINE_REGEX.captures(&line).unwrap();
-        let line = (line.get(1).unwrap().as_str(), String::from(line.get(2).unwrap().as_str()));
 
-        parser(&mut obj, line);
+        if line.starts_with('%') || line.is_empty() { continue }
+        
+        let line = LINE_REGEX.captures(&line).expect(&format!("Invalid line encountered: \"{}\"", line));
+        let (key, value) = (line.get(2), line.get(3));
+
+        let key = match key {
+            Some(m) => String::from(m.as_str()),
+            None => last_key.unwrap()
+        };
+
+        let value = match value {
+            Some(x) => x.as_str(),
+            None => ""
+        };
+
+        if !key.starts_with("x-") { 
+            parser(&mut obj, (&key, String::from(value)));
+        }
+
+        last_key = Some(key);
     }
 
     obj
+}
+
+fn combine(a: &String, b: String) -> String {
+    if a.is_empty() {
+        b
+    } else {
+        format!("{}\n{}", &a, &b)
+    }
+}
+
+fn combine_option(a: &Option<String>, b: String) -> Option<String> {
+    match a {
+        Some(v) => Some(format!("{}\n{}", v, b)),
+        None => Some(b)
+    }
 }
 
 #[derive(Debug)]
@@ -93,13 +120,13 @@ impl RegistryAutNum {
         parse(RegistryAutNum::new(num), base_path, "aut-num", &format!("AS{}", num), &|obj, (key, value)| {
             match key {
                 "aut-num" => if format!("AS{}", num) != value { panic!("Missmatching autnums: {} != AS{}", value, num); },
-                "as-name" => obj.as_name = value,
-                "descr" => obj.descr = Some(value),
+                "as-name" => obj.as_name = combine(&obj.as_name, value),
+                "descr" => obj.descr = combine_option(&obj.descr, value),
                 "mnt-by" => obj.mnt_by.push(value),
                 "member-of" => obj.member_of.push(value),
                 "admin-c" => obj.admin_c.push(value),
                 "tech-c" => obj.tech_c.push(value),
-                "org" => obj.org = Some(value),
+                "org" => obj.org = combine_option(&obj.org, value),
                 "import" => obj.import.push(value),
                 "export" => obj.export.push(value),
                 "default" => obj.default.push(value),
@@ -149,7 +176,7 @@ impl RegistryAsSet {
         parse(RegistryAsSet::new(name), base_path, "as-set", name, &|obj, (key, value)| {
             match key {
                 "as-set" => if name != value { panic!("Missmatching as-set name: {} != {}", name, value); },
-                "descr" => obj.descr = Some(value),
+                "descr" => obj.descr = combine_option(&obj.descr, value),
                 "mnt-by" => obj.mnt_by.push(value),
                 "members" => obj.members.push(value),
                 "mbrs-by-ref" => obj.mbrs_by_ref.push(value),
@@ -175,7 +202,7 @@ pub enum RegistryAsBlockPolicy {
 pub struct RegistryAsBlock {
     pub as_block: String,
     pub descr: Option<String>,
-    pub policy: RegistryAsBlockPolicy,
+    pub policy: String,
     pub mnt_by: Vec<String>,
     pub admin_c: Vec<String>,
     pub tech_c: Vec<String>,
@@ -188,7 +215,7 @@ impl RegistryAsBlock {
         RegistryAsBlock {
             as_block: String::from(name),
             descr: None,
-            policy: RegistryAsBlockPolicy::Open,
+            policy: String::new(),
             mnt_by: Vec::new(),
             admin_c: Vec::new(),
             tech_c: Vec::new(),
@@ -201,8 +228,8 @@ impl RegistryAsBlock {
         parse(RegistryAsBlock::new(name), base_path, "as-block", name, &|obj, (key, value)| {
             match key {
                 "as-block" => if value != name { panic!("Missmatching as-block name: {} != {}", name, value); },
-                "descr" => obj.descr = Some(value),
-//                "policy" => obj.policy = ...,
+                "descr" => obj.descr = combine_option(&obj.descr, value),
+                "policy" => obj.policy = value,
                 "mnt-by" => obj.mnt_by.push(value),
                 "admin-c" => obj.admin_c.push(value),
                 "tech-c" => obj.tech_c.push(value),
@@ -251,12 +278,12 @@ impl RegistryDns {
                 "domain" => if value != name { panic!("Missmatching domain names: {} != {}", name, value); },
                 "nserver" => obj.nserver.push(value),
                 "status" => obj.status = value,
-                "descr" => obj.descr = Some(value),
+                "descr" => obj.descr = combine_option(&obj.descr, value),
                 "mnt-by" => obj.mnt_by.push(value),
                 "admin-c" => obj.admin_c.push(value),
                 "tech-c" => obj.tech_c.push(value),
                 "org" => obj.org.push(value),
-                "country" => obj.country = Some(value),
+                "country" => obj.country = combine_option(&obj.country, value),
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
                 _ => panic!("Unhandled entry in domain {}: {} = {}", name, key, value)
@@ -278,11 +305,29 @@ impl InetCidr {
     pub fn from(i: &str, length: u8) -> InetCidr {
         InetCidr(InetNum::from(i), length)
     }
+
+    pub fn from_filename(name: &str) -> InetCidr {
+        let caps = CIDR_FILENAME_FORMAT.captures(name).expect(&format!("Failed to parse filename cidr: {}", name));
+        InetCidr::from(caps.get(1).unwrap().as_str(), caps.get(5).unwrap().as_str().parse::<u8>().unwrap())
+    }
+
+    pub fn len(&self) -> u8 {
+        self.1
+    }
 }
 
 impl Inet6Cidr {
     pub fn new(input: &str, len: u8) -> Inet6Cidr {
         Inet6Cidr(Inet6Num(String::from(input)), len)
+    }
+
+    pub fn from_filename(name: &str) -> Inet6Cidr {
+        let caps = CIDR_FILENAME_FORMAT.captures(name).expect(&format!("Failed to parse filename cidr6: {}", name));
+        Inet6Cidr::new(caps.get(1).unwrap().as_str(), caps.get(5).unwrap().as_str().parse::<u8>().unwrap())
+    }
+
+    pub fn len(&self) -> u8 {
+        self.1
     }
 }
 
@@ -370,10 +415,10 @@ impl RegistryInetNumCommon {
             "netname" => self.netname = value,
             "nserver" => self.nserver.push(value),
             "country" => self.country.push(value),
-            "descr" => self.descr = Some(value),
-            "status" => self.status = Some(value),
-            "bgp-status" => self.bgp_status = Some(value),
-            "policy" => self.policy = Some(value),
+            "descr" => self.descr = combine_option(&self.descr, value),
+            "status" => self.status = combine_option(&self.status, value),
+            "bgp-status" => self.bgp_status = combine_option(&self.bgp_status, value),
+            "policy" => self.policy = combine_option(&self.policy, value),
             "admin-c" => self.admin_c.push(value),
             "tech-c" => self.tech_c.push(value),
             "zone-c" => self.zone_c.push(value),
@@ -381,7 +426,7 @@ impl RegistryInetNumCommon {
             "mnt-by" => self.mnt_by.push(value),
             "mnt-lower" => self.mnt_lower.push(value),
             "mnt-routes" => self.mnt_routes.push(value),
-            "org" => self.org = Some(value),
+            "org" => self.org = combine_option(&self.org, value),
             "remarks" => self.remarks.push(value),
             "source" => self.source = value,
             _ => panic!("Unhandled entry in inet(6)num: {} = {}", key, value)
@@ -487,11 +532,11 @@ impl RegistryRoute {
             match key {
                 "route" => if cidr.to_string() != value { panic!("Missmatching cidr in route: {} != {}", cidr.to_string(), value); },
                 "mnt-by" => obj.mnt_by.push(value),
-                "origin" => obj.origin.push(value),
+                "origin" => obj.origin.push(String::from(&value[2..])),
                 "member-of" => obj.member_of.push(value),
                 "admin-c" => obj.admin_c.push(value),
                 "tech-c" => obj.tech_c.push(value),
-                "descr" => obj.descr = Some(value),
+                "descr" => obj.descr = combine_option(&obj.descr, value),
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
                 "pingable" => obj.pingable.push(InetNum::from(&value)),
@@ -537,7 +582,7 @@ impl RegistryRoute6 {
             match key {
                 "route6" => if cidr.to_string() != value { panic!("Missmatch in route6: {} != {}", cidr.to_string(), value); },
                 "mnt-by" => obj.mnt_by.push(value),
-                "origin" => obj.origin.push(value),
+                "origin" => obj.origin.push(String::from(&value[2..])),
                 "member-of" => obj.member_of.push(value),
                 "admin-c" => obj.admin_c.push(value),
                 "tech-c" => obj.tech_c.push(value),
@@ -562,6 +607,42 @@ pub struct RegistryRouteSet {
     pub tech_c: Vec<String>,
     pub remarks: Vec<String>,
     pub source: String
+}
+
+impl RegistryRouteSet {
+    pub fn new(name: String) -> RegistryRouteSet {
+        RegistryRouteSet {
+            route_set: name,
+            descr: None,
+            mnt_by: Vec::new(),
+            members: Vec::new(),
+            mp_members: Vec::new(),
+            mbrs_by_ref: Vec::new(),
+            admin_c: Vec::new(),
+            tech_c: Vec::new(),
+            remarks: Vec::new(),
+            source: String::from("")
+        }
+    }
+
+    pub fn from(base_path: &PathBuf, name: String) -> RegistryRouteSet {
+        let name_clone = name.clone();
+        parse(RegistryRouteSet::new(name_clone), base_path, "route-set", &name, &|obj, (key, value)| {
+            match key {
+                "route-set" => if value != obj.route_set { panic!("Missmatching name in route-set: {} != {}", obj.route_set, value); },
+                "descr" => obj.descr = combine_option(&obj.descr, value),
+                "mnt-by" => obj.mnt_by.push(value),
+                "members" => obj.members.push(value),
+                "mp-members" => obj.mp_members.push(value),
+                "mbrs-by-ref" => obj.mbrs_by_ref.push(value),
+                "admin-c" => obj.admin_c.push(value),
+                "tech-c" => obj.tech_c.push(value),
+                "remarks" => obj.remarks.push(value),
+                "source" => obj.source = value,
+                _ => panic!("Unhandled entry in route-set {}: {} = {}", obj.route_set, key, value)
+            }
+        })
+    }
 }
 
 pub struct RegistryData {
