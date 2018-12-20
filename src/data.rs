@@ -499,6 +499,7 @@ pub enum RegistryKeyCertMethod {
 #[derive(Debug)]
 pub struct RegistryRoute {
     pub route: InetCidr,
+    pub max_length: Option<i32>,
     pub mnt_by: Vec<String>,
     pub origin: Vec<String>,
     pub member_of: Vec<String>,
@@ -514,6 +515,7 @@ impl RegistryRoute {
     pub fn new(cidr: InetCidr) -> RegistryRoute {
         RegistryRoute {
             route: cidr,
+            max_length: None,
             mnt_by: Vec::new(),
             origin: Vec::new(),
             member_of: Vec::new(),
@@ -531,6 +533,7 @@ impl RegistryRoute {
         parse(RegistryRoute::new(cidr), base_path, "route", &format!("{}_{}", net, length), &|obj, (key, value)| {
             match key {
                 "route" => if cidr.to_string() != value { panic!("Missmatching cidr in route: {} != {}", cidr.to_string(), value); },
+                "max-length" => obj.max_length = Some((&value[..]).parse::<i32>().unwrap()),
                 "mnt-by" => obj.mnt_by.push(value),
                 "origin" => obj.origin.push(String::from(&value[2..])),
                 "member-of" => obj.member_of.push(value),
@@ -549,6 +552,7 @@ impl RegistryRoute {
 #[derive(Debug)]
 pub struct RegistryRoute6 {
     pub route6: Inet6Cidr,
+    pub max_length: Option<i32>,
     pub mnt_by: Vec<String>,
     pub origin: Vec<String>,
     pub member_of: Vec<String>,
@@ -564,6 +568,7 @@ impl RegistryRoute6 {
     pub fn new(cidr: Inet6Cidr) -> RegistryRoute6 {
         RegistryRoute6 {
             route6: cidr,
+            max_length: None,
             mnt_by: Vec::new(),
             origin: Vec::new(),
             member_of: Vec::new(),
@@ -581,6 +586,7 @@ impl RegistryRoute6 {
         parse(RegistryRoute6::new(cidr.clone()), base_path, "route6", &format!("{}_{}", &net, length), &|obj, (key, value)| {
             match key {
                 "route6" => if cidr.to_string() != value { panic!("Missmatch in route6: {} != {}", cidr.to_string(), value); },
+                "max-length" => obj.max_length = Some((&value[..]).parse::<i32>().unwrap()),
                 "mnt-by" => obj.mnt_by.push(value),
                 "origin" => obj.origin.push(String::from(&value[2..])),
                 "member-of" => obj.member_of.push(value),
