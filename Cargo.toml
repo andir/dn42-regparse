@@ -6,5 +6,3 @@ authors = ["Yamakaja <yamakaja@openmailbox.org>"]
 [dependencies]
 regex = "1"
 lazy_static = "1.1"
-hyper = "0.12"
-json = "0.11"
