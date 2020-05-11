@@ -2,12 +2,24 @@ extern crate regparse;
 
 use regparse::data::RegistryData;
 use regparse::parse::*;
-use std::cmp;
 use std::env;
 use std::io::Write;
 
 const IPV4_PREFIX_LEN_MAX: u8 = 28;
+const IPV4_PREFIX_LEN_MIN: u8 = 15;
 const IPV6_PREFIX_LEN_MAX: u8 = 64;
+const IPV6_PREFIX_LEN_MIN: u8 = 40;
+
+#[inline]
+fn clamp(min: u8, max: u8, val: u8) -> u8 {
+    if val < min {
+        min
+    } else if val > max {
+        max
+    } else {
+        val
+    }
+}
 
 fn write_roa(data: &RegistryData, path: &std::path::PathBuf) -> std::io::Result<()> {
     let mut fh = std::fs::File::create(path)?;
@@ -22,7 +34,7 @@ fn write_roa(data: &RegistryData, path: &std::path::PathBuf) -> std::io::Result<
                 fh,
                 "route {} max {} as {};",
                 route.route,
-                cmp::max(max_prefix_len, route.route.len()),
+                clamp(IPV4_PREFIX_LEN_MIN, IPV4_PREFIX_LEN_MAX, route.route.len()),
                 origin
             )?;
         }
@@ -43,7 +55,7 @@ fn write_roa6(data: &RegistryData, path: &std::path::PathBuf) -> std::io::Result
                 fh,
                 "route {} max {} as {};",
                 route.route,
-                cmp::max(max_prefix_len, route.route.len()),
+                clamp(IPV6_PREFIX_LEN_MIN, IPV6_PREFIX_LEN_MAX, route.route.len()),
                 origin
             )?;
         }
