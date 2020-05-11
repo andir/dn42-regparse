@@ -20,9 +20,10 @@ the entire registry and then exits.
 
 ### roagen
 
-A small application that parses the routes and prints them in the config syntax for
-ROA validation by bird (2.x - support for bird 1.x can be achieved by piping the output
-through `sed 's/route/roa/g'`).
+A small application that parses the routes and writes them to the files
+`roa.txt` and `roa6.txt` them in the config syntax for ROA validation by bird
+(2.x - support for bird 1.x can be achieved by piping the output through `sed
+'s/route/roa/g'`).
 
 Example output:
 
@@ -47,41 +48,3 @@ Example output:
     route fda0:bbe1:38d::/48 max 64 as 4242420160;
     route fdfe:1647:a2bb::/48 max 64 as 4242421978;
     route fd23:dead:beef::/48 max 64 as 65432;
-
-### roasrv
-
-roasrv serves a similar purpose to roagen, but it's slightly more complex: roasrv in conjunction with CloudFlares gortr can be used to perform ROA validation using the RPKI-to-Router protocol. For this, roasrv performs the following tasks:
-
-* roasrv will regularly pull updates to a local (git) copy of the dn42 registry, and re-parse it if it detects a change
-* The parsed data is then converted into a json string which is made accessible to gortr using a builtin webserver
-
-See the Yamakaja/roasrv-pkg repository for instructions on how to setup roasrv with gortr
-
-Example data:
-
-```json
-{
-  "roas": [
-    {
-      "prefix": "10.0.0.0/16",
-      "maxLength": 29,
-      "asn": "AS65079"
-    },
-    {
-      "prefix": "10.1.0.0/17",
-      "maxLength": 29,
-      "asn": "AS65530"
-    },
-    {
-      "prefix": "fdff:feed:c0de::/48",
-      "maxLength": 64,
-      "asn": "AS4242420138"
-    },
-    {
-      "prefix": "fd42:c066:e081::/48",
-      "maxLength": 64,
-      "asn": "AS4242420092"
-    }
-  ]
-}
-```
