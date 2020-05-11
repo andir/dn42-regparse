@@ -1,20 +1,28 @@
-use std::vec::Vec;
-use std::io::prelude::*;
+use std::fmt;
 use std::fs::File;
+use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::PathBuf;
-use std::fmt;
+use std::vec::Vec;
 
 extern crate regex;
 use self::regex::Regex;
 
 lazy_static! {
     static ref LINE_REGEX: Regex = Regex::new(r"^(([a-z0-9\-]+):)?\s+(\S.*)?$").unwrap();
-    static ref INETv4_FORMAT: Regex = Regex::new(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})").unwrap();
-    static ref CIDR_FILENAME_FORMAT: Regex = Regex::new(r"((\d{1,3}(\.\d{1,3}){3})|([:0-9a-f]+))_(\d{1,3})").unwrap();
+    static ref INETv4_FORMAT: Regex =
+        Regex::new(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})").unwrap();
+    static ref CIDR_FILENAME_FORMAT: Regex =
+        Regex::new(r"((\d{1,3}(\.\d{1,3}){3})|([:0-9a-f]+))_(\d{1,3})").unwrap();
 }
 
-fn parse<T>(obj: T, base_path: &PathBuf, obj_type: &str, obj_name: &str, parser: &Fn(&mut T, (&str, String))) -> T {
+fn parse<T>(
+    obj: T,
+    base_path: &PathBuf,
+    obj_type: &str,
+    obj_name: &str,
+    parser: &Fn(&mut T, (&str, String)),
+) -> T {
     let mut obj = obj;
     let mut path = base_path.clone();
     path.push(obj_type);
@@ -23,26 +31,29 @@ fn parse<T>(obj: T, base_path: &PathBuf, obj_type: &str, obj_name: &str, parser:
     let reader = BufReader::new(file);
 
     let mut last_key: Option<String> = None;
-    
     for line in reader.lines() {
         let line = line.unwrap();
 
-        if line.starts_with('%') || line.is_empty() { continue }
-        
-        let line = LINE_REGEX.captures(&line).expect(&format!("Invalid line encountered: \"{}\"", line));
+        if line.starts_with('%') || line.is_empty() {
+            continue;
+        }
+
+        let line = LINE_REGEX
+            .captures(&line)
+            .expect(&format!("Invalid line encountered: \"{}\"", line));
         let (key, value) = (line.get(2), line.get(3));
 
         let key = match key {
             Some(m) => String::from(m.as_str()),
-            None => last_key.unwrap()
+            None => last_key.unwrap(),
         };
 
         let value = match value {
             Some(x) => x.as_str(),
-            None => ""
+            None => "",
         };
 
-        if !key.starts_with("x-") { 
+        if !key.starts_with("x-") {
             parser(&mut obj, (&key, String::from(value)));
         }
 
@@ -63,7 +74,7 @@ fn combine(a: &String, b: String) -> String {
 fn combine_option(a: &Option<String>, b: String) -> Option<String> {
     match a {
         Some(v) => Some(format!("{}\n{}", v, b)),
-        None => Some(b)
+        None => Some(b),
     }
 }
 
@@ -87,11 +98,10 @@ pub struct RegistryAutNum {
     pub mp_default: Vec<String>,
     pub geo_loc: Vec<String>, // Format: "> [lat-c] [long-c] [name]"
     pub remarks: Vec<String>,
-    pub source: String
+    pub source: String,
 }
 
 impl RegistryAutNum {
-
     pub fn new(num: u32) -> RegistryAutNum {
         RegistryAutNum {
             aut_num: num,
@@ -112,14 +122,21 @@ impl RegistryAutNum {
             mp_default: Vec::new(),
             geo_loc: Vec::new(),
             remarks: Vec::new(),
-            source: String::from("")
+            source: String::from(""),
         }
     }
-    
     pub fn from(base_path: &PathBuf, num: u32) -> RegistryAutNum {
-        parse(RegistryAutNum::new(num), base_path, "aut-num", &format!("AS{}", num), &|obj, (key, value)| {
-            match key {
-                "aut-num" => if format!("AS{}", num) != value { panic!("Missmatching autnums: {} != AS{}", value, num); },
+        parse(
+            RegistryAutNum::new(num),
+            base_path,
+            "aut-num",
+            &format!("AS{}", num),
+            &|obj, (key, value)| match key {
+                "aut-num" => {
+                    if format!("AS{}", num) != value {
+                        panic!("Missmatching autnums: {} != AS{}", value, num);
+                    }
+                }
                 "as-name" => obj.as_name = combine(&obj.as_name, value),
                 "descr" => obj.descr = combine_option(&obj.descr, value),
                 "mnt-by" => obj.mnt_by.push(value),
@@ -138,9 +155,9 @@ impl RegistryAutNum {
                 "geo-loc" => obj.geo_loc.push(value),
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
-                _ => panic!("Unhandled entry in aut-num AS{}: {} = {}", num, key, value)
-            }
-        })
+                _ => panic!("Unhandled entry in aut-num AS{}: {} = {}", num, key, value),
+            },
+        )
     }
 }
 
@@ -154,7 +171,7 @@ pub struct RegistryAsSet {
     pub admin_c: Vec<String>,
     pub tech_c: Vec<String>,
     pub remarks: Vec<String>,
-    pub source: String
+    pub source: String,
 }
 
 impl RegistryAsSet {
@@ -168,14 +185,22 @@ impl RegistryAsSet {
             admin_c: Vec::new(),
             tech_c: Vec::new(),
             remarks: Vec::new(),
-            source: String::from("")
+            source: String::from(""),
         }
     }
 
     pub fn from(base_path: &PathBuf, name: &str) -> RegistryAsSet {
-        parse(RegistryAsSet::new(name), base_path, "as-set", name, &|obj, (key, value)| {
-            match key {
-                "as-set" => if name != value { panic!("Missmatching as-set name: {} != {}", name, value); },
+        parse(
+            RegistryAsSet::new(name),
+            base_path,
+            "as-set",
+            name,
+            &|obj, (key, value)| match key {
+                "as-set" => {
+                    if name != value {
+                        panic!("Missmatching as-set name: {} != {}", name, value);
+                    }
+                }
                 "descr" => obj.descr = combine_option(&obj.descr, value),
                 "mnt-by" => obj.mnt_by.push(value),
                 "members" => obj.members.push(value),
@@ -184,18 +209,17 @@ impl RegistryAsSet {
                 "tech-c" => obj.tech_c.push(value),
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
-                _ => panic!("Unhandled entry in as-set {}: {} = {}", name, key, value)
-            }
-        })
+                _ => panic!("Unhandled entry in as-set {}: {} = {}", name, key, value),
+            },
+        )
     }
-        
 }
 
 #[derive(Debug)]
 pub enum RegistryAsBlockPolicy {
     Open,
     Ask,
-    Closed
+    Closed,
 }
 
 #[derive(Debug)]
@@ -207,7 +231,7 @@ pub struct RegistryAsBlock {
     pub admin_c: Vec<String>,
     pub tech_c: Vec<String>,
     pub remarks: Vec<String>,
-    pub source: String
+    pub source: String,
 }
 
 impl RegistryAsBlock {
@@ -220,14 +244,22 @@ impl RegistryAsBlock {
             admin_c: Vec::new(),
             tech_c: Vec::new(),
             remarks: Vec::new(),
-            source: String::from("")
+            source: String::from(""),
         }
     }
 
     pub fn from(base_path: &PathBuf, name: &str) -> RegistryAsBlock {
-        parse(RegistryAsBlock::new(name), base_path, "as-block", name, &|obj, (key, value)| {
-            match key {
-                "as-block" => if value != name { panic!("Missmatching as-block name: {} != {}", name, value); },
+        parse(
+            RegistryAsBlock::new(name),
+            base_path,
+            "as-block",
+            name,
+            &|obj, (key, value)| match key {
+                "as-block" => {
+                    if value != name {
+                        panic!("Missmatching as-block name: {} != {}", name, value);
+                    }
+                }
                 "descr" => obj.descr = combine_option(&obj.descr, value),
                 "policy" => obj.policy = value,
                 "mnt-by" => obj.mnt_by.push(value),
@@ -235,9 +267,9 @@ impl RegistryAsBlock {
                 "tech-c" => obj.tech_c.push(value),
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
-                _ => panic!("Unhandled entry in as-block {}: {} = {}", name, key, value)
-            }
-        })
+                _ => panic!("Unhandled entry in as-block {}: {} = {}", name, key, value),
+            },
+        )
     }
 }
 
@@ -253,7 +285,7 @@ pub struct RegistryDns {
     pub org: Vec<String>,
     pub country: Option<String>,
     pub remarks: Vec<String>,
-    pub source: String
+    pub source: String,
 }
 
 impl RegistryDns {
@@ -269,13 +301,21 @@ impl RegistryDns {
             org: Vec::new(),
             country: None,
             remarks: Vec::new(),
-            source: String::from("")
+            source: String::from(""),
         }
     }
     pub fn from(base_path: &PathBuf, name: &str) -> RegistryDns {
-        parse(RegistryDns::new(name), base_path, "dns", name, &|obj, (key, value)| {
+        parse(RegistryDns::new(name), base_path, "dns", name, &|obj,
+                                                                (
+            key,
+            value,
+        )| {
             match key {
-                "domain" => if value != name { panic!("Missmatching domain names: {} != {}", name, value); },
+                "domain" => {
+                    if value != name {
+                        panic!("Missmatching domain names: {} != {}", name, value);
+                    }
+                }
                 "nserver" => obj.nserver.push(value),
                 "status" => obj.status = value,
                 "descr" => obj.descr = combine_option(&obj.descr, value),
@@ -286,16 +326,20 @@ impl RegistryDns {
                 "country" => obj.country = combine_option(&obj.country, value),
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
-                _ => panic!("Unhandled entry in domain {}: {} = {}", name, key, value)
+                _ => panic!("Unhandled entry in domain {}: {} = {}", name, key, value),
             }
         })
     }
 }
 
-#[derive(Copy, Clone, Debug)] pub struct InetNum(u8, u8, u8, u8);
-#[derive(Clone, Debug)] pub struct Inet6Num(String);
-#[derive(Copy, Clone, Debug)] pub struct InetCidr(InetNum, u8);
-#[derive(Clone, Debug)] pub struct Inet6Cidr(Inet6Num, u8);
+#[derive(Copy, Clone, Debug)]
+pub struct InetNum(u8, u8, u8, u8);
+#[derive(Clone, Debug)]
+pub struct Inet6Num(String);
+#[derive(Copy, Clone, Debug)]
+pub struct InetCidr(InetNum, u8);
+#[derive(Clone, Debug)]
+pub struct Inet6Cidr(Inet6Num, u8);
 
 impl InetCidr {
     pub fn new((a, b, c, d): (u8, u8, u8, u8), length: u8) -> InetCidr {
@@ -307,8 +351,13 @@ impl InetCidr {
     }
 
     pub fn from_filename(name: &str) -> InetCidr {
-        let caps = CIDR_FILENAME_FORMAT.captures(name).expect(&format!("Failed to parse filename cidr: {}", name));
-        InetCidr::from(caps.get(1).unwrap().as_str(), caps.get(5).unwrap().as_str().parse::<u8>().unwrap())
+        let caps = CIDR_FILENAME_FORMAT
+            .captures(name)
+            .expect(&format!("Failed to parse filename cidr: {}", name));
+        InetCidr::from(
+            caps.get(1).unwrap().as_str(),
+            caps.get(5).unwrap().as_str().parse::<u8>().unwrap(),
+        )
     }
 
     pub fn len(&self) -> u8 {
@@ -322,8 +371,13 @@ impl Inet6Cidr {
     }
 
     pub fn from_filename(name: &str) -> Inet6Cidr {
-        let caps = CIDR_FILENAME_FORMAT.captures(name).expect(&format!("Failed to parse filename cidr6: {}", name));
-        Inet6Cidr::new(caps.get(1).unwrap().as_str(), caps.get(5).unwrap().as_str().parse::<u8>().unwrap())
+        let caps = CIDR_FILENAME_FORMAT
+            .captures(name)
+            .expect(&format!("Failed to parse filename cidr6: {}", name));
+        Inet6Cidr::new(
+            caps.get(1).unwrap().as_str(),
+            caps.get(5).unwrap().as_str().parse::<u8>().unwrap(),
+        )
     }
 
     pub fn len(&self) -> u8 {
@@ -359,7 +413,7 @@ impl InetNum {
             caps.get(1).unwrap().as_str().parse::<u8>().unwrap(),
             caps.get(2).unwrap().as_str().parse::<u8>().unwrap(),
             caps.get(3).unwrap().as_str().parse::<u8>().unwrap(),
-            caps.get(4).unwrap().as_str().parse::<u8>().unwrap()
+            caps.get(4).unwrap().as_str().parse::<u8>().unwrap(),
         );
 
         InetNum(a, b, c, d)
@@ -384,29 +438,29 @@ pub struct RegistryInetNumCommon {
     pub mnt_routes: Vec<String>,
     pub org: Option<String>,
     pub remarks: Vec<String>,
-    pub source: String
+    pub source: String,
 }
 
 impl RegistryInetNumCommon {
     pub fn new() -> RegistryInetNumCommon {
         RegistryInetNumCommon {
-                netname: String::from(""),
-                nserver: Vec::new(),
-                country: Vec::new(),
-                descr: None,
-                status: None,
-                bgp_status: None,
-                policy: None,
-                admin_c: Vec::new(),
-                tech_c: Vec::new(),
-                zone_c: Vec::new(),
-                ds_rdata: Vec::new(),
-                mnt_by: Vec::new(),
-                mnt_lower: Vec::new(),
-                mnt_routes: Vec::new(),
-                org: None,
-                remarks: Vec::new(),
-                source: String::from("")
+            netname: String::from(""),
+            nserver: Vec::new(),
+            country: Vec::new(),
+            descr: None,
+            status: None,
+            bgp_status: None,
+            policy: None,
+            admin_c: Vec::new(),
+            tech_c: Vec::new(),
+            zone_c: Vec::new(),
+            ds_rdata: Vec::new(),
+            mnt_by: Vec::new(),
+            mnt_lower: Vec::new(),
+            mnt_routes: Vec::new(),
+            org: None,
+            remarks: Vec::new(),
+            source: String::from(""),
         }
     }
 
@@ -429,7 +483,7 @@ impl RegistryInetNumCommon {
             "org" => self.org = combine_option(&self.org, value),
             "remarks" => self.remarks.push(value),
             "source" => self.source = value,
-            _ => panic!("Unhandled entry in inet(6)num: {} = {}", key, value)
+            _ => panic!("Unhandled entry in inet(6)num: {} = {}", key, value),
         };
     }
 }
@@ -438,7 +492,7 @@ impl RegistryInetNumCommon {
 pub struct RegistryInetNum {
     pub inetnum: String,
     pub cidr: InetCidr,
-    pub common: RegistryInetNumCommon
+    pub common: RegistryInetNumCommon,
 }
 
 impl RegistryInetNum {
@@ -446,19 +500,27 @@ impl RegistryInetNum {
         RegistryInetNum {
             cidr: net,
             inetnum: String::from(""),
-            common: RegistryInetNumCommon::new()
+            common: RegistryInetNumCommon::new(),
         }
     }
 
     pub fn from(base_path: &PathBuf, cidr: InetCidr) -> RegistryInetNum {
         let InetCidr(net, length) = cidr;
-        parse(RegistryInetNum::new(cidr), base_path, "inetnum", &format!("{}_{}", net, length), &|obj, (key, value)| {
-            match key {
-                "cidr" => if value != cidr.to_string() { panic!("Missmatching cidr in inetnum: '{}' != '{}'", cidr, value); },
+        parse(
+            RegistryInetNum::new(cidr),
+            base_path,
+            "inetnum",
+            &format!("{}_{}", net, length),
+            &|obj, (key, value)| match key {
+                "cidr" => {
+                    if value != cidr.to_string() {
+                        panic!("Missmatching cidr in inetnum: '{}' != '{}'", cidr, value);
+                    }
+                }
                 "inetnum" => obj.inetnum = value,
-                _ => obj.common.parse((key, value))
-            }
-        })
+                _ => obj.common.parse((key, value)),
+            },
+        )
     }
 }
 
@@ -466,7 +528,7 @@ impl RegistryInetNum {
 pub struct RegistryInet6Num {
     pub inet6num: String,
     pub cidr: Inet6Cidr,
-    pub common: RegistryInetNumCommon
+    pub common: RegistryInetNumCommon,
 }
 
 impl RegistryInet6Num {
@@ -474,26 +536,34 @@ impl RegistryInet6Num {
         RegistryInet6Num {
             cidr: net,
             inet6num: String::from(""),
-            common: RegistryInetNumCommon::new()
+            common: RegistryInetNumCommon::new(),
         }
     }
 
     pub fn from(base_path: &PathBuf, cidr: Inet6Cidr) -> RegistryInet6Num {
         let Inet6Cidr(net, length) = cidr.clone();
-        parse(RegistryInet6Num::new(cidr), base_path, "inet6num", &format!("{}_{}", net.0, length), &|obj, (key, value)| {
-            match key {
-                "cidr" => if value != obj.cidr.to_string() { panic!("Missmatching cidr in inet6num: {} != {}", obj.cidr, value); },
+        parse(
+            RegistryInet6Num::new(cidr),
+            base_path,
+            "inet6num",
+            &format!("{}_{}", net.0, length),
+            &|obj, (key, value)| match key {
+                "cidr" => {
+                    if value != obj.cidr.to_string() {
+                        panic!("Missmatching cidr in inet6num: {} != {}", obj.cidr, value);
+                    }
+                }
                 "inet6num" => obj.inet6num = value,
-                _ => obj.common.parse((key, value))
-            }
-        })
+                _ => obj.common.parse((key, value)),
+            },
+        )
     }
 }
 
 pub enum RegistryKeyCertMethod {
     PGP,
     X509,
-    MTN
+    MTN,
 }
 
 #[derive(Debug)]
@@ -508,7 +578,7 @@ pub struct RegistryRoute {
     pub descr: Option<String>,
     pub remarks: Vec<String>,
     pub source: String,
-    pub pingable: Vec<InetNum>
+    pub pingable: Vec<InetNum>,
 }
 
 impl RegistryRoute {
@@ -524,15 +594,27 @@ impl RegistryRoute {
             descr: None,
             remarks: Vec::new(),
             source: String::from(""),
-            pingable: Vec::new()
+            pingable: Vec::new(),
         }
     }
 
     pub fn from(base_path: &PathBuf, cidr: InetCidr) -> RegistryRoute {
         let InetCidr(net, length) = cidr;
-        parse(RegistryRoute::new(cidr), base_path, "route", &format!("{}_{}", net, length), &|obj, (key, value)| {
-            match key {
-                "route" => if cidr.to_string() != value { panic!("Missmatching cidr in route: {} != {}", cidr.to_string(), value); },
+        parse(
+            RegistryRoute::new(cidr),
+            base_path,
+            "route",
+            &format!("{}_{}", net, length),
+            &|obj, (key, value)| match key {
+                "route" => {
+                    if cidr.to_string() != value {
+                        panic!(
+                            "Missmatching cidr in route: {} != {}",
+                            cidr.to_string(),
+                            value
+                        );
+                    }
+                }
                 "max-length" => obj.max_length = Some((&value[..]).parse::<i32>().unwrap()),
                 "mnt-by" => obj.mnt_by.push(value),
                 "origin" => obj.origin.push(String::from(&value[2..])),
@@ -543,9 +625,9 @@ impl RegistryRoute {
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
                 "pingable" => obj.pingable.push(InetNum::from(&value)),
-                _ => panic!("Unhandled entry in route {}: {} = {}", cidr, key, value)
-            }
-        })
+                _ => panic!("Unhandled entry in route {}: {} = {}", cidr, key, value),
+            },
+        )
     }
 }
 
@@ -561,7 +643,7 @@ pub struct RegistryRoute6 {
     pub descr: Vec<String>,
     pub remarks: Vec<String>,
     pub source: String,
-    pub pingable: Vec<Inet6Num>
+    pub pingable: Vec<Inet6Num>,
 }
 
 impl RegistryRoute6 {
@@ -577,15 +659,23 @@ impl RegistryRoute6 {
             descr: Vec::new(),
             remarks: Vec::new(),
             source: String::from(""),
-            pingable: Vec::new()
+            pingable: Vec::new(),
         }
     }
 
     pub fn from(base_path: &PathBuf, cidr: Inet6Cidr) -> RegistryRoute6 {
         let Inet6Cidr(Inet6Num(net), length) = cidr.clone();
-        parse(RegistryRoute6::new(cidr.clone()), base_path, "route6", &format!("{}_{}", &net, length), &|obj, (key, value)| {
-            match key {
-                "route6" => if cidr.to_string() != value { panic!("Missmatch in route6: {} != {}", cidr.to_string(), value); },
+        parse(
+            RegistryRoute6::new(cidr.clone()),
+            base_path,
+            "route6",
+            &format!("{}_{}", &net, length),
+            &|obj, (key, value)| match key {
+                "route6" => {
+                    if cidr.to_string() != value {
+                        panic!("Missmatch in route6: {} != {}", cidr.to_string(), value);
+                    }
+                }
                 "max-length" => obj.max_length = Some((&value[..]).parse::<i32>().unwrap()),
                 "mnt-by" => obj.mnt_by.push(value),
                 "origin" => obj.origin.push(String::from(&value[2..])),
@@ -596,9 +686,9 @@ impl RegistryRoute6 {
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
                 "pingable" => obj.pingable.push(Inet6Num(value)),
-                _ => panic!("Unhandled entry in route6 {}: {} = {}", cidr, key, value)
-            }
-        })
+                _ => panic!("Unhandled entry in route6 {}: {} = {}", cidr, key, value),
+            },
+        )
     }
 }
 
@@ -612,7 +702,7 @@ pub struct RegistryRouteSet {
     pub admin_c: Vec<String>,
     pub tech_c: Vec<String>,
     pub remarks: Vec<String>,
-    pub source: String
+    pub source: String,
 }
 
 impl RegistryRouteSet {
@@ -627,15 +717,26 @@ impl RegistryRouteSet {
             admin_c: Vec::new(),
             tech_c: Vec::new(),
             remarks: Vec::new(),
-            source: String::from("")
+            source: String::from(""),
         }
     }
 
     pub fn from(base_path: &PathBuf, name: String) -> RegistryRouteSet {
         let name_clone = name.clone();
-        parse(RegistryRouteSet::new(name_clone), base_path, "route-set", &name, &|obj, (key, value)| {
-            match key {
-                "route-set" => if value != obj.route_set { panic!("Missmatching name in route-set: {} != {}", obj.route_set, value); },
+        parse(
+            RegistryRouteSet::new(name_clone),
+            base_path,
+            "route-set",
+            &name,
+            &|obj, (key, value)| match key {
+                "route-set" => {
+                    if value != obj.route_set {
+                        panic!(
+                            "Missmatching name in route-set: {} != {}",
+                            obj.route_set, value
+                        );
+                    }
+                }
                 "descr" => obj.descr = combine_option(&obj.descr, value),
                 "mnt-by" => obj.mnt_by.push(value),
                 "members" => obj.members.push(value),
@@ -645,9 +746,12 @@ impl RegistryRouteSet {
                 "tech-c" => obj.tech_c.push(value),
                 "remarks" => obj.remarks.push(value),
                 "source" => obj.source = value,
-                _ => panic!("Unhandled entry in route-set {}: {} = {}", obj.route_set, key, value)
-            }
-        })
+                _ => panic!(
+                    "Unhandled entry in route-set {}: {} = {}",
+                    obj.route_set, key, value
+                ),
+            },
+        )
     }
 }
 
