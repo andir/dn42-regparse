@@ -1,3 +1,8 @@
+# NOTICE
+
+This is a fork of `git.dn42.us:Yamakaja/regparse.git`. I just adjusted a few
+bits here and there to fit my personal taste.
+
 # Regparse
 
 Regparse consists of two parts, a library and multiple application binaries.
