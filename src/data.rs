@@ -21,7 +21,7 @@ fn parse<T>(
     base_path: &PathBuf,
     obj_type: &str,
     obj_name: &str,
-    parser: &Fn(&mut T, (&str, String)),
+    parser: &dyn Fn(&mut T, (&str, String)),
 ) -> T {
     let mut obj = obj;
     let mut path = base_path.clone();
