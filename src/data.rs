@@ -569,7 +569,7 @@ pub enum RegistryKeyCertMethod {
 #[derive(Debug)]
 pub struct RegistryRoute {
     pub route: InetCidr,
-    pub max_length: Option<i32>,
+    pub max_length: Option<u8>,
     pub mnt_by: Vec<String>,
     pub origin: Vec<String>,
     pub member_of: Vec<String>,
@@ -615,7 +615,7 @@ impl RegistryRoute {
                         );
                     }
                 }
-                "max-length" => obj.max_length = Some((&value[..]).parse::<i32>().unwrap()),
+                "max-length" => obj.max_length = Some((&value[..]).parse::<u8>().unwrap()),
                 "mnt-by" => obj.mnt_by.push(value),
                 "origin" => obj.origin.push(String::from(&value[2..])),
                 "member-of" => obj.member_of.push(value),
@@ -634,7 +634,7 @@ impl RegistryRoute {
 #[derive(Debug)]
 pub struct RegistryRoute6 {
     pub route6: Inet6Cidr,
-    pub max_length: Option<i32>,
+    pub max_length: Option<u8>,
     pub mnt_by: Vec<String>,
     pub origin: Vec<String>,
     pub member_of: Vec<String>,
@@ -676,7 +676,7 @@ impl RegistryRoute6 {
                         panic!("Missmatch in route6: {} != {}", cidr.to_string(), value);
                     }
                 }
-                "max-length" => obj.max_length = Some((&value[..]).parse::<i32>().unwrap()),
+                "max-length" => obj.max_length = Some((&value[..]).parse::<u8>().unwrap()),
                 "mnt-by" => obj.mnt_by.push(value),
                 "origin" => obj.origin.push(String::from(&value[2..])),
                 "member-of" => obj.member_of.push(value),
