@@ -31,7 +31,10 @@ fn parse<T>(
     let reader = BufReader::new(file);
 
     let mut last_key: Option<String> = None;
-    for line in reader.lines() {
+
+    let mut iterator = reader.lines().peekable();
+
+    while let Some(line) = iterator.next() {
         let line = line.unwrap();
 
         if line.starts_with('%') || line.is_empty() {
@@ -48,19 +51,95 @@ fn parse<T>(
             None => last_key.unwrap(),
         };
 
-        let value = match value {
-            Some(x) => x.as_str(),
-            None => "",
+        let mut value: String = match value {
+            Some(x) => x.as_str().to_string(),
+            None => "".to_owned(),
         };
 
+        while let Some(Ok(res)) = iterator.peek() {
+            if res.starts_with(" ") || res.starts_with("\t") || res == "+" {
+                if res != "+" {
+                    value += res.trim_start();
+                }
+                value.push('\n');
+
+                iterator.next();
+            } else {
+                break;
+            }
+        }
+
         if !key.starts_with("x-") {
-            parser(&mut obj, (&key, String::from(value)));
+            parser(&mut obj, (&key, value));
         }
 
         last_key = Some(key);
     }
 
     obj
+}
+
+#[cfg(test)]
+#[test]
+fn test_parse_simple_inetnum() {
+    let cidr = InetCidr::from("127.0.0.0", 8);
+
+    let dir = tempfile::TempDir::new().unwrap();
+    let mut f = dir.path().to_path_buf();
+    f.push("inetnum");
+
+    std::fs::DirBuilder::new().create(&f).unwrap();
+
+    let example = r#"inetnum: 127.0.0.0 - 127.255.255.255
+cidr: 127.0.0.0/8
+remarks: test
+"#;
+
+    f.push("127.0.0.0_8");
+
+    println!("test input:\n{}", example);
+
+    std::fs::write(&f, example).unwrap();
+
+    let obj = RegistryInetNum::from(&std::path::PathBuf::from(dir.path()), cidr);
+
+    assert_eq!(obj.cidr.to_string(), cidr.to_string());
+}
+
+#[cfg(test)]
+#[test]
+fn test_parse_simple_inetnum_multiline_remark() {
+    let cidr = InetCidr::from("127.0.0.0", 8);
+
+    let dir = tempfile::TempDir::new().unwrap();
+    let mut f = dir.path().to_path_buf();
+    f.push("inetnum");
+
+    std::fs::DirBuilder::new().create(&f).unwrap();
+
+    let example = r#"inetnum: 127.0.0.0 - 127.255.255.255
+cidr: 127.0.0.0/8
+remarks:         
+    test foo bar baz
++
+    more test strings
+    + ----- +
+    asdfasdf
+"#;
+
+    f.push("127.0.0.0_8");
+
+    std::fs::write(&f, example).unwrap();
+
+    let obj = RegistryInetNum::from(&std::path::PathBuf::from(dir.path()), cidr);
+
+    println!("remarks: {:?}", obj.common.remarks);
+
+    assert_eq!(obj.cidr.to_string(), cidr.to_string());
+    assert_eq!(
+        obj.common.remarks,
+        vec!["test foo bar baz\n\nmore test strings\n+ ----- +\nasdfasdf\n"]
+    );
 }
 
 fn combine(a: &String, b: String) -> String {
@@ -153,7 +232,10 @@ impl RegistryAutNum {
                 "mp-export" => obj.mp_export.push(value),
                 "mp-default" => obj.mp_default.push(value),
                 "geo-loc" => obj.geo_loc.push(value),
-                "remarks" => obj.remarks.push(value),
+                "remarks" => {
+                    println!("+remarks: {:?}", value);
+                    obj.remarks.push(value)
+                }
                 "source" => obj.source = value,
                 _ => panic!("Unhandled entry in aut-num AS{}: {} = {}", num, key, value),
             },

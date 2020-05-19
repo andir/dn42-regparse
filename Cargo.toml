@@ -6,3 +6,6 @@ authors = ["Yamakaja <yamakaja@openmailbox.org>"]
 [dependencies]
 regex = "1"
 lazy_static = "1.1"
+
+[dev-dependencies]
+tempfile = "3.1.0"
