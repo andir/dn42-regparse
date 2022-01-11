@@ -22,11 +22,21 @@ fn write_roa(data: &RegistryData, path: &std::path::PathBuf) -> std::io::Result<
                 continue;
             }
 
+            let route_max_length = route.max_length.unwrap_or(route.route.len());
+
+            if route_max_length > route.route.len() {
+                continue;
+            }
+
+            if route_max_length > 32 {
+                continue;
+            }
+
             writeln!(
                 fh,
                 "route {} max {} as {};",
                 route.route,
-                route.max_length.unwrap_or(route.route.len()),
+                route_max_length,
                 origin
             )?;
         }
