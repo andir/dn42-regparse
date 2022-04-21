@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::vec::Vec;
 
 extern crate regex;
@@ -445,6 +446,10 @@ impl InetCidr {
     pub fn len(&self) -> u8 {
         self.1
     }
+
+    pub fn num(&self) -> InetNum {
+        self.0
+    }
 }
 
 impl Inet6Cidr {
@@ -464,6 +469,18 @@ impl Inet6Cidr {
 
     pub fn len(&self) -> u8 {
         self.1
+    }
+
+    pub fn num(&self) -> Inet6Num {
+        self.0.clone()
+    }
+}
+
+impl std::convert::TryFrom<Inet6Num> for std::net::Ipv6Addr {
+    type Error = std::net::AddrParseError;
+
+    fn try_from(o: Inet6Num) -> std::result::Result<Self, Self::Error> {
+        std::net::Ipv6Addr::from_str(&o.0)
     }
 }
 
@@ -499,6 +516,12 @@ impl InetNum {
         );
 
         InetNum(a, b, c, d)
+    }
+}
+
+impl From<InetNum> for std::net::Ipv4Addr {
+    fn from(o: InetNum) -> Self {
+        Self::new(o.0, o.1, o.2, o.3)
     }
 }
 

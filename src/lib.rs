@@ -1,4 +1,5 @@
-pub mod parse;
 pub mod data;
+pub mod parse;
 
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate lazy_static;

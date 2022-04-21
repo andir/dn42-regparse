@@ -2,10 +2,12 @@
 name = "regparse"
 version = "0.1.0"
 authors = ["Yamakaja <yamakaja@openmailbox.org>"]
+edition = "2021"
 
 [dependencies]
 regex = "1"
-lazy_static = "1.1"
+lazy_static = "1.4"
+cidr = "0.2.1"
 
 [dev-dependencies]
 tempfile = "3.1.0"
